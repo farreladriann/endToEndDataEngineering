@@ -1,0 +1,2819 @@
+./.gitignore ===================
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Node
+node_modules/
+/web/node_modules
+/web/build
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Airflow
+airflow/logs/
+airflow/*.pid
+airflow/*.err
+airflow/*.out
+airflow/*.log
+airflow/airflow-webserver.pid
+
+# Data
+*.csv
+*.db
+*.sqlite3
+model/data/raw/*
+model/data/processed/*
+!model/data/raw/.gitkeep
+!model/data/processed/.gitkeep
+
+# Model files
+*.pkl
+*.h5
+*.model
+*.joblib
+
+# Docker
+.docker/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+./manage.sh ===================
+#!/bin/bash
+
+function start_services() {
+    echo "Starting services..."
+    docker-compose up -d
+    echo "Waiting for services to be ready..."
+    sleep 10
+}
+
+function stop_services() {
+    echo "Stopping services..."
+    docker-compose down
+}
+
+function init_airflow() {
+    echo "Initializing Airflow..."
+    docker-compose exec airflow-webserver airflow db init
+    
+    echo "Creating Airflow admin user..."
+    docker-compose exec airflow-webserver airflow users create \
+        --username admin \
+        --firstname Admin \
+        --lastname User \
+        --role Admin \
+        --email admin@example.com \
+        --password admin
+}
+
+function show_logs() {
+    docker-compose logs -f
+}
+
+case "$1" in
+    "start")
+        start_services
+        ;;
+    "stop")
+        stop_services
+        ;;
+    "restart")
+        stop_services
+        start_services
+        ;;
+    "init")
+        init_airflow
+        ;;
+    "logs")
+        show_logs
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|init|logs}"
+        exit 1
+        ;;
+esac
+
+./run_tests.py ===================
+#!/usr/bin/env python
+# run_tests.py
+
+import pytest
+import sys
+import os
+
+def run_tests():
+    """Run all tests and return exit code"""
+    # Add project root to Python path
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, project_root)
+    
+    # Run pytest with verbosity
+    exit_code = pytest.main([
+        '-v',
+        '--capture=no',
+        '--tb=short',
+        'tests/'
+    ])
+    
+    return exit_code
+
+if __name__ == '__main__':
+    sys.exit(run_tests())
+
+./README.md ===================
+# endToEndDataEngineering
+
+Dokumen project (blog post): https://secretive-citipati-39d.notion.site/Prediksi-Nilai-Tukar-ISK-terhadap-USD-Berdasarkan-Data-Cuaca-Ekstrem-di-Islandia-1440731850318096be61c2852a2bbd11
+
+
+./combine.py ===================
+import os
+
+# Define the root directory
+root_dir = "./"  # Replace this with your root directory
+output_file = "merged_files.txt"
+
+# Define folders and file types to exclude
+exclude_dirs = {"venv", "data", ".git", "logs"}
+exclude_extensions = {".ipynb", ".csv", ".log"}
+
+# Open the output file to write the merged content
+with open(output_file, "w", encoding="utf-8") as outfile:
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        # Exclude specified directories
+        dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
+        
+        for filename in filenames:
+            # Skip files with excluded extensions
+            if any(filename.endswith(ext) for ext in exclude_extensions):
+                continue
+            
+            # Construct the full path of the file
+            file_path = os.path.join(dirpath, filename)
+            # Get the relative path from the root
+            relative_path = os.path.relpath(file_path, start=root_dir)
+            
+            # Write the relative path and separator
+            outfile.write(f"./{relative_path} ===================\n")
+            
+            # Read and write the content of the file
+            try:
+                with open(file_path, "r", encoding="utf-8") as infile:
+                    outfile.write(infile.read())
+            except Exception as e:
+                outfile.write(f"Error reading file: {e}\n")
+            
+            # Add a newline separator for readability
+            outfile.write("\n\n")
+
+print(f"Files merged into {output_file}")
+
+
+./docker-compose.yml ===================
+version: '3.8'
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: ./docker/airflow/Dockerfile
+  environment: &airflow-common-env
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__WEBSERVER__SECRET_KEY: 'this-is-a-very-secret-key'
+    AIRFLOW_HOME: /opt/airflow
+    AIRFLOW_UID: '50000'
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./airflow/config:/opt/airflow/config
+    - ./src:/opt/airflow/src
+    - ./models:/opt/airflow/models  # Added models directory
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    command: |
+      bash -c '
+      airflow db init &&
+      airflow users create \
+        --username admin \
+        --password admin \
+        --firstname Admin \
+        --lastname User \
+        --role Admin \
+        --email admin@example.com
+      '
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: ./docker/jupyter/Dockerfile
+    container_name: jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/notebooks
+      - ./src:/home/jovyan/src
+      - ./data:/home/jovyan/data
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    restart: always
+
+volumes:
+  postgres-data:
+
+./setup.sh ===================
+#!/bin/bash
+
+# Create project structure
+mkdir -p docker/{airflow,jupyter,postgres}
+mkdir -p airflow/{dags,logs,plugins,config}
+mkdir -p src/{data,database,models,utils}
+mkdir -p {notebooks,tests,logs}
+
+# Create necessary files
+touch docker/airflow/Dockerfile
+touch docker/jupyter/Dockerfile
+touch docker/postgres/init.sql
+touch .env
+touch requirements.txt
+
+# Create __init__.py files
+for dir in src src/data src/database src/models src/utils tests; do
+    echo 'from src.utils.logger import setup_logger
+
+logger = setup_logger(__name__)' > ${dir}/__init__.py
+done
+
+# Set permissions
+chmod -R 755 docker/
+chmod -R 755 airflow/
+chmod -R 755 src/
+chmod -R 755 tests/
+chmod -R 766 logs/
+chmod 644 .env
+chmod 644 requirements.txt
+
+echo "Project structure created successfully!"
+
+./fix-permission.sh ===================
+#!/bin/bash
+
+# Stop containers
+docker-compose down
+
+# Remove existing volumes
+docker volume rm endtoenddataengineering_postgres-data
+
+# Create directories with correct permissions
+sudo mkdir -p ./airflow/logs ./airflow/dags ./airflow/plugins
+sudo chown -R 50000:50000 ./airflow/logs ./airflow/dags ./airflow/plugins
+
+# Start containers
+docker-compose up -d
+
+# Initialize the database
+docker-compose exec airflow-webserver airflow db init
+
+# Create admin user
+docker-compose exec airflow-webserver airflow users create \
+    --username admin \
+    --firstname Admin \
+    --lastname User \
+    --role Admin \
+    --email admin@example.com \
+    --password admin
+
+./requirements.txt ===================
+apache-airflow==2.7.1
+pandas==2.1.0
+numpy==1.24.3
+psycopg2-binary==2.9.9
+requests==2.31.0
+python-dotenv==1.0.0
+yfinance==0.2.33
+scikit-learn==1.3.0
+xgboost==2.0.0
+pytest==7.4.0
+jupyter==1.0.0
+matplotlib==3.7.2
+seaborn==0.12.2
+
+./merged_files.txt ===================
+./.gitignore ===================
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Node
+node_modules/
+/web/node_modules
+/web/build
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Airflow
+airflow/logs/
+airflow/*.pid
+airflow/*.err
+airflow/*.out
+airflow/*.log
+airflow/airflow-webserver.pid
+
+# Data
+*.csv
+*.db
+*.sqlite3
+model/data/raw/*
+model/data/processed/*
+!model/data/raw/.gitkeep
+!model/data/processed/.gitkeep
+
+# Model files
+*.pkl
+*.h5
+*.model
+*.joblib
+
+# Docker
+.docker/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+./manage.sh ===================
+#!/bin/bash
+
+function start_services() {
+    echo "Starting services..."
+    docker-compose up -d
+    echo "Waiting for services to be ready..."
+    sleep 10
+}
+
+function stop_services() {
+    echo "Stopping services..."
+    docker-compose down
+}
+
+function init_airflow() {
+    echo "Initializing Airflow..."
+    docker-compose exec airflow-webserver airflow db init
+    
+    echo "Creating Airflow admin user..."
+    docker-compose exec airflow-webserver airflow users create \
+        --username admin \
+        --firstname Admin \
+        --lastname User \
+        --role Admin \
+        --email admin@example.com \
+        --password admin
+}
+
+function show_logs() {
+    docker-compose logs -f
+}
+
+case "$1" in
+    "start")
+        start_services
+        ;;
+    "stop")
+        stop_services
+        ;;
+    "restart")
+        stop_services
+        start_services
+        ;;
+    "init")
+        init_airflow
+        ;;
+    "logs")
+        show_logs
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|init|logs}"
+        exit 1
+        ;;
+esac
+
+./run_tests.py ===================
+#!/usr/bin/env python
+# run_tests.py
+
+import pytest
+import sys
+import os
+
+def run_tests():
+    """Run all tests and return exit code"""
+    # Add project root to Python path
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, project_root)
+    
+    # Run pytest with verbosity
+    exit_code = pytest.main([
+        '-v',
+        '--capture=no',
+        '--tb=short',
+        'tests/'
+    ])
+    
+    return exit_code
+
+if __name__ == '__main__':
+    sys.exit(run_tests())
+
+./README.md ===================
+# endToEndDataEngineering
+
+Dokumen project (blog post): https://secretive-citipati-39d.notion.site/Prediksi-Nilai-Tukar-ISK-terhadap-USD-Berdasarkan-Data-Cuaca-Ekstrem-di-Islandia-1440731850318096be61c2852a2bbd11
+
+
+./combine.py ===================
+import os
+
+# Define the root directory
+root_dir = "./"  # Replace this with your root directory
+output_file = "merged_files.txt"
+
+# Define folders and file types to exclude
+exclude_dirs = {"venv", "data", ".git", "logs"}
+exclude_extensions = {".ipynb", ".csv", ".log"}
+
+# Open the output file to write the merged content
+with open(output_file, "w", encoding="utf-8") as outfile:
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        # Exclude specified directories
+        dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
+        
+        for filename in filenames:
+            # Skip files with excluded extensions
+            if any(filename.endswith(ext) for ext in exclude_extensions):
+                continue
+            
+            # Construct the full path of the file
+            file_path = os.path.join(dirpath, filename)
+            # Get the relative path from the root
+            relative_path = os.path.relpath(file_path, start=root_dir)
+            
+            # Write the relative path and separator
+            outfile.write(f"./{relative_path} ===================\n")
+            
+            # Read and write the content of the file
+            try:
+                with open(file_path, "r", encoding="utf-8") as infile:
+                    outfile.write(infile.read())
+            except Exception as e:
+                outfile.write(f"Error reading file: {e}\n")
+            
+            # Add a newline separator for readability
+            outfile.write("\n\n")
+
+print(f"Files merged into {output_file}")
+
+
+./docker-compose.yml ===================
+version: '3.8'
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: ./docker/airflow/Dockerfile
+  environment: &airflow-common-env
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__WEBSERVER__SECRET_KEY: 'this-is-a-very-secret-key'
+    AIRFLOW_HOME: /opt/airflow
+    AIRFLOW_UID: '50000'
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./airflow/config:/opt/airflow/config
+    - ./src:/opt/airflow/src
+    - ./models:/opt/airflow/models  # Added models directory
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    command: |
+      bash -c '
+      airflow db init &&
+      airflow users create \
+        --username admin \
+        --password admin \
+        --firstname Admin \
+        --lastname User \
+        --role Admin \
+        --email admin@example.com
+      '
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: ./docker/jupyter/Dockerfile
+    container_name: jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/notebooks
+      - ./src:/home/jovyan/src
+      - ./data:/home/jovyan/data
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    restart: always
+
+volumes:
+  postgres-data:
+
+./setup.sh ===================
+#!/bin/bash
+
+# Create project structure
+mkdir -p docker/{airflow,jupyter,postgres}
+mkdir -p airflow/{dags,logs,plugins,config}
+mkdir -p src/{data,database,models,utils}
+mkdir -p {notebooks,tests,logs}
+
+# Create necessary files
+touch docker/airflow/Dockerfile
+touch docker/jupyter/Dockerfile
+touch docker/postgres/init.sql
+touch .env
+touch requirements.txt
+
+# Create __init__.py files
+for dir in src src/data src/database src/models src/utils tests; do
+    echo 'from src.utils.logger import setup_logger
+
+logger = setup_logger(__name__)' > ${dir}/__init__.py
+done
+
+# Set permissions
+chmod -R 755 docker/
+chmod -R 755 airflow/
+chmod -R 755 src/
+chmod -R 755 tests/
+chmod -R 766 logs/
+chmod 644 .env
+chmod 644 requirements.txt
+
+echo "Project structure created successfully!"
+
+./output.py ===================
+pip install pandas matplotlib seaborn numpy scikit-learn xgboost pickle-mixin optuna tqdm
+
+
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import requests
+import csv
+from io import StringIO
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import seaborn as sns
+import sklearn
+from sklearn import metrics
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import psycopg2
+from sklearn.model_selection import train_test_split, TimeSeriesSplit
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from xgboost import XGBRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
+import pickle
+import optuna
+import tqdm
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+
+# Get the current date
+current_date = datetime.now().strftime('%Y-%m-%d')
+
+# Download the historical exchange rate data for USD/ISK from current date to 2020
+symbol = "USDISK=X"  # USD to Icelandic Krona
+data = yf.download(symbol, start="2020-01-01", end=current_date, interval="1mo")
+
+# Filter the data to get the first day of each month
+data_first_day_of_month = data.resample('MS').first()  # 'MS' stands for Month Start
+
+# Save to CSV with the name 'currency.csv'
+data_first_day_of_month.to_csv('currency.csv')
+
+
+data1 = pd.read_csv('currency.csv')
+data1.info()
+
+data1
+
+
+data1['Price'].value_counts()
+
+data1['Adj Close'].value_counts()
+
+data1['Close'].value_counts()
+
+data1['High'].value_counts()
+
+data1['Low'].value_counts()
+
+data1['Open'].value_counts()
+
+data1['Volume'].value_counts()
+
+data1 = data1.drop(['Adj Close', 'High', 'Low', 'Open', 'Volume'], axis = 1)
+
+
+data1.columns = ["date", "rate"]
+
+
+# Hapus baris yang mengandung nilai tertentu di kolom 'date' atau 'rate'
+data1 = data1[~data1["date"].astype(str).str.contains("Ticker|Date", na=False)]
+data1 = data1.dropna(subset=["date"])  # Menghapus baris dengan NaN di kolom 'date'
+
+
+data1.info()
+
+data1["date"] = pd.to_datetime(data1["date"]).dt.strftime('%Y-%m-%d')
+
+
+data1['date'] = pd.to_datetime(data1['date'])
+
+data1 = data1[data1['date'].dt.year.isin([2022, 2023, 2024])]
+
+data1 = data1.sort_values(by='date', ascending=True, ignore_index=True)
+
+data1
+
+url = "https://archive-api.open-meteo.com/v1/archive"
+
+# Menghitung end_date sesuai dengan permintaan
+end_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
+
+# Mengatur start_date menjadi 1 Januari 2022
+start_date = datetime(2022, 1, 1).strftime('%Y-%m-%d')
+
+# Mengupdate parameter URL
+params = {
+    "latitude": 64.9631,
+    "longitude": -19.0208,
+    "start_date": start_date,
+    "end_date": end_date,
+    "daily": "weather_code,temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum,rain_sum,snowfall_sum,precipitation_hours,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant",
+    "timezone": "auto"
+}
+
+start_date, end_date, params
+
+
+# WMO Weather Code Descriptions
+weather_code_descriptions = {
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Depositing rime fog",
+    51: "Drizzle: Light",
+    53: "Drizzle: Moderate",
+    55: "Drizzle: Dense intensity",
+    56: "Freezing Drizzle: Light",
+    57: "Freezing Drizzle: Dense intensity",
+    61: "Rain: Slight",
+    63: "Rain: Moderate",
+    65: "Rain: Heavy intensity",
+    66: "Freezing Rain: Light",
+    67: "Freezing Rain: Heavy",
+    71: "Snow fall: Slight",
+    73: "Snow fall: Moderate",
+    75: "Snow fall: Heavy",
+    77: "Snow grains",
+    80: "Rain showers: Slight",
+    81: "Rain showers: Moderate",
+    82: "Rain showers: Violent",
+    85: "Snow showers: Slight",
+    86: "Snow showers: Heavy",
+    95: "Thunderstorm: Slight or moderate",
+    96: "Thunderstorm with slight hail",
+    99: "Thunderstorm with heavy hail",
+}
+
+# Mengirim permintaan GET ke API
+response = requests.get(url, params=params)
+
+# Memeriksa status permintaan
+if response.status_code == 200:
+    data = response.json()
+
+    # Ambil data daily
+    daily_data = data.get("daily", {})
+
+    if daily_data:
+        # Convert to DataFrame
+        df = pd.DataFrame(daily_data)
+
+        # Add weather code descriptions
+        df["weather_description"] = df["weather_code"].map(weather_code_descriptions)
+
+        # Save to CSV
+        df.to_csv("weather.csv", index=False)
+        print("Data has been saved to weather.csv")
+    else:
+        print("No daily data found in response.")
+else:
+    print(f"Failed to fetch data. Status code: {response.status_code}")
+
+data2 = pd.read_csv('weather.csv')
+data2.info()
+
+data2
+
+data2['time'].value_counts()
+
+data2['temperature_2m_max'].value_counts()
+
+data2['temperature_2m_min'].value_counts()
+
+data2['temperature_2m_mean'].value_counts()
+
+data2['precipitation_sum'].value_counts()
+
+data2['rain_sum'].value_counts()
+
+data2['snowfall_sum'].value_counts()
+
+data2['precipitation_hours'].value_counts()
+
+data2['wind_speed_10m_max'].value_counts()
+
+data2['wind_gusts_10m_max'].value_counts()
+
+data2['wind_direction_10m_dominant'].value_counts()
+
+data2['weather_description'].value_counts()
+
+data2 = data2.drop(['temperature_2m_min', 'temperature_2m_max', 'precipitation_hours', 'wind_gusts_10m_max', 'wind_direction_10m_dominant','rain_sum', 'snowfall_sum' ], axis=1)
+
+data2.info()
+
+data2["time"] = pd.to_datetime(data2["time"]).dt.strftime('%Y-%m-%d')
+
+
+data2['time'] = pd.to_datetime(data2['time'])
+
+data2
+
+data1.to_csv('currency_new.csv', index=False)
+data2.to_csv('weather_new.csv', index=False)
+
+data_new1 = pd.read_csv('currency_new.csv')
+data_new2 = pd.read_csv('weather_new.csv')
+
+# Ubah kolom ke format datetime
+data_new1['date'] = pd.to_datetime(data_new1['date'])
+data_new2['time'] = pd.to_datetime(data_new2['time'])
+
+# Tambahkan kolom 'year' dan 'month' di kedua DataFrame
+data_new1['year'] = data_new1['date'].dt.year
+data_new1['month'] = data_new1['date'].dt.month
+
+data_new2['year'] = data_new2['time'].dt.year
+data_new2['month'] = data_new2['time'].dt.month
+
+# Drop duplikasi bulan di data1 (jika ada)
+data_new1_unique = data_new1.drop_duplicates(subset=['year', 'month'])
+
+# Merge data berdasarkan tahun dan bulan
+data_new = pd.merge(data_new2, data_new1_unique[['year', 'month', 'rate']], on=['year', 'month'], how='left')
+
+# Hasil
+data_new
+
+# drop unnecessary columns
+data_new = data_new.drop(['month', 'year'], axis = 1)
+
+data_new.info()
+
+data_new.isna().sum()
+
+print(f'The oldest time is {df.time.min()}\nThe latest time is {df.time.max()}')
+
+plt.figure(figsize=(20, 10))
+sns.lineplot(x=data_new['time'], y=data_new['rate'], color='green')
+plt.xlabel('time')
+plt.ylabel('rate')
+plt.title('Lineplot of Time vs rate')
+plt.show()
+
+
+# Convert time to numerical rate for regression
+data_new['numeric_datetime'] = pd.to_numeric(pd.to_datetime(data_new['time']))
+
+# Fit a linear regression line
+coefficients = np.polyfit(data_new['numeric_datetime'], data_new['rate'], 1)
+polynomial = np.poly1d(coefficients)
+trend_line = polynomial(data_new['numeric_datetime'])
+
+plt.figure(figsize=(20, 10))
+# Changed 'datetime' to 'Date time' in line 11 and 14
+plt.plot(data_new['time'], data_new['rate'], label='Value', color = 'green') # Changed 'Date time' to 'datetime'
+plt.plot(data_new['time'], trend_line, label='Trend Line', color='red', linestyle='--') # Changed 'Date time' to 'datetime'
+plt.xlabel('Datetime')
+plt.ylabel('Value')
+plt.title('Distribution of Datetime and Value')
+
+# Filter data to include only the first day of each month
+# Changed 'datetime' to 'Date time' in line 19
+monthly_data = data_new[pd.to_datetime(data_new['time']).dt.day == 1] # Changed 'Date time' to 'datetime'
+
+
+# Adding text annotations on top of the line for the first day of each month
+# Changed 'datetime' to 'Date time' in line 22
+for i, (dt, val) in enumerate(zip(monthly_data['time'], monthly_data['rate'])): # Changed 'Date time' to 'datetime'
+    plt.text(dt, val, f'{val:.2f}', ha='center', va='bottom', fontsize=12, rotation=0, color='blue')
+
+plt.legend()
+plt.show()
+
+data_new.drop(['numeric_datetime'], axis = 1, inplace=True)
+
+data_new
+
+# @title Temperature vs. Wind Speed
+
+import matplotlib.pyplot as plt
+
+# Assuming your data is in a pandas DataFrame called 'df'
+
+# Create the scatter plot
+plt.figure(figsize=(10, 6))
+plt.scatter(df['temperature_2m_mean'], df['wind_speed_10m_max'])
+
+plt.xlabel('Temperature (℃)')
+plt.ylabel('Wind Speed (m/s)')
+_ = plt.title('Temperature vs. Wind Speed')
+
+
+# @title precipitation_sum vs wind_speed_10m_max
+
+from matplotlib import pyplot as plt
+data_new.plot(kind='scatter', x='precipitation_sum', y='wind_speed_10m_max', s=32, alpha=.8)
+plt.gca().spines[['top', 'right',]].set_visible(False)
+
+data_encoded = data_new.drop(['weather_description'], axis = 1)
+
+plt.figure(figsize=(20, 10))
+sns.heatmap(data_encoded.corr(), annot=True, cmap='Greens')
+plt.show()
+
+# relocate the value column to the end
+
+col_value = data_encoded.pop('rate')
+data_encoded.insert(len(data_encoded.columns), 'rate', col_value)
+
+# data_encoded to csv
+
+data_encoded.to_csv('data_final.csv', index=False)
+
+df = pd.read_csv('data_final.csv')
+df.info()
+
+# Identify numeric columns excluding datetime and value columns
+features_col = df.select_dtypes(include=['number']).columns
+features_col = [col for col in features_col if col not in ['datetime', 'rate', 'weather_code']]
+
+# Create subplots
+fig, axes = plt.subplots(1, 3, figsize=(30, 5))
+axes = axes.flatten()
+
+# Iterate over numeric columns
+for i, column in enumerate(features_col):
+    # Create boxplot only if the column is numeric
+    sns.boxplot(x=df[column], ax=axes[i])
+
+# Display the plots
+plt.show()
+
+# Remove outliers
+for column in features_col:
+    q1 = df[column].quantile(0.25)
+    q3 = df[column].quantile(0.75)
+    iqr = q3 - q1
+    fence_low = q1 - 1.5 * iqr
+    fence_high = q3 + 1.5 * iqr
+    df = df.loc[(df[column] > fence_low) & (df[column] < fence_high)]
+
+# Display the modified data
+df
+
+# Identify numeric columns excluding datetime and value columns
+features_col = df.select_dtypes(include=['number']).columns
+features_col = [col for col in features_col if col not in ['datetime', 'rate', 'weather_code']]
+
+# Create subplots
+fig, axes = plt.subplots(1, 3, figsize=(30, 5))
+axes = axes.flatten()
+
+# Iterate over numeric columns
+for i, column in enumerate(features_col):
+    # Create boxplot only if the column is numeric
+    sns.boxplot(x=df[column], ax=axes[i])
+
+# Display the plots
+plt.show()
+
+# Data preprocessing
+X = df.drop(['time', 'rate'], axis=1)  # Features (excluding 'time' dan 'rate')
+y = df['rate']  # Target (kolom 'rate')
+
+# Train-test split berdasarkan waktu
+train_size = int(0.8 * len(df))  # Menghitung ukuran data training (80%)
+train, test = df[:train_size], df[train_size:]  # Membagi data menjadi train dan test
+
+
+# Splitting into X_train, X_test, y_train, y_test
+X_train, y_train = train.drop(['time', 'rate'], axis=1), train['rate']  # Fitur dan target untuk data training
+X_test, y_test = test.drop(['time', 'rate'], axis=1), test['rate']  # Fitur dan target untuk data testing
+
+
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Model prediction
+y_pred = model.predict(X_test)
+
+# Evaluate the model using RMSE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f'Root Mean Squared Error: {rmse}')
+
+# Plotting Actual vs Predicted values
+plt.figure(figsize=(10, 6))
+
+# Scatter plot of actual vs predicted values
+plt.scatter(y_test, y_pred, color='blue', alpha=0.5, label='Predicted vs Actual')
+
+# Add a line for perfect prediction (y = x)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', label='Perfect prediction')
+
+# Add labels and title
+plt.xlabel('Actual Values')
+plt.ylabel('Predicted Values')
+plt.title('Actual vs Predicted Values - Linear Regression')
+plt.legend()
+
+# Show plot
+plt.show()
+
+
+
+# Fit XGBoost model
+model = XGBRegressor()
+model.fit(X_train, y_train)
+
+# Model prediction
+y_pred = model.predict(X_test)
+
+# Evaluate the model using RMSE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f'Root Mean Squared Error: {rmse}')
+
+# Plotting Actual vs Predicted values
+plt.figure(figsize=(10, 6))
+
+# Scatter plot of actual vs predicted values
+plt.scatter(y_test, y_pred, color='blue', alpha=0.5, label='Predicted vs Actual')
+
+# Add a line for perfect prediction (y = x)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', label='Perfect prediction')
+
+# Add labels and title
+plt.xlabel('Actual Values')
+plt.ylabel('Predicted Values')
+plt.title('Actual vs Predicted Values - XGBoostRegressor')
+plt.legend()
+
+# Show plot
+plt.show()
+
+
+
+# Fit RandomForestRegressor model
+model = RandomForestRegressor()
+model.fit(X_train, y_train)
+
+# Model prediction
+y_pred = model.predict(X_test)
+
+# Evaluate the model using RMSE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f'Root Mean Squared Error: {rmse}')
+
+# Plotting Actual vs Predicted values
+plt.figure(figsize=(10, 6))
+
+# Scatter plot of actual vs predicted values
+plt.scatter(y_test, y_pred, color='blue', alpha=0.5, label='Predicted vs Actual')
+
+# Add a line for perfect prediction (y = x)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', label='Perfect prediction')
+
+# Add labels and title
+plt.xlabel('Actual Values')
+plt.ylabel('Predicted Values')
+plt.title('Actual vs Predicted Values - RandomForestRegressor')
+plt.legend()
+
+# Show plot
+plt.show()
+
+
+# Fit DecisionTreeRegressor model
+model = DecisionTreeRegressor()
+model.fit(X_train, y_train)
+
+# Model prediction
+y_pred = model.predict(X_test)
+
+# Evaluate the model using RMSE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f'Root Mean Squared Error: {rmse}')
+
+# Plotting Actual vs Predicted values
+plt.figure(figsize=(10, 6))
+
+# Scatter plot of actual vs predicted values
+plt.scatter(y_test, y_pred, color='blue', alpha=0.5, label='Predicted vs Actual')
+
+# Add a line for perfect prediction (y = x)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', label='Perfect prediction')
+
+# Add labels and title
+plt.xlabel('Actual Values')
+plt.ylabel('Predicted Values')
+plt.title('Actual vs Predicted Values - DecisionTreeRegressor')
+plt.legend()
+
+# Show plot
+plt.show()
+
+
+
+
+./output10.py ===================
+pip install pandas matplotlib seaborn numpy scikit-learn xgboost pickle-mixin optuna tqdm
+
+
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import requests
+import csv
+from io import StringIO
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import seaborn as sns
+import sklearn
+from sklearn import metrics
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import psycopg2
+from sklearn.model_selection import train_test_split, TimeSeriesSplit
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from xgboost import XGBRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
+import pickle
+import optuna
+import tqdm
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+
+# Get the current date
+current_date = datetime.now().strftime('%Y-%m-%d')
+
+# Download the historical exchange rate data for USD/ISK from current date to 2020
+symbol = "USDISK=X"  # USD to Icelandic Krona
+data = yf.download(symbol, start="2020-01-01", end=current_date, interval="1mo")
+
+# Filter the data to get the first day of each month
+data_first_day_of_month = data.resample('MS').first()  # 'MS' stands for Month Start
+
+# Save to CSV with the name 'currency.csv'
+data_first_day_of_month.to_csv('currency.csv')
+
+
+data1 = pd.read_csv('currency.csv')
+data1.info()
+
+data1
+
+
+data1['Price'].value_counts()
+
+data1['Adj Close'].value_counts()
+
+data1['Close'].value_counts()
+
+data1['High'].value_counts()
+
+data1['Low'].value_counts()
+
+data1['Open'].value_counts()
+
+data1['Volume'].value_counts()
+
+data1 = data1.drop(['Adj Close', 'High', 'Low', 'Open', 'Volume'], axis = 1)
+
+
+data1.columns = ["date", "rate"]
+
+
+# Hapus baris yang mengandung nilai tertentu di kolom 'date' atau 'rate'
+data1 = data1[~data1["date"].astype(str).str.contains("Ticker|Date", na=False)]
+data1 = data1.dropna(subset=["date"])  # Menghapus baris dengan NaN di kolom 'date'
+
+
+data1.info()
+
+data1["date"] = pd.to_datetime(data1["date"]).dt.strftime('%Y-%m-%d')
+
+
+data1['date'] = pd.to_datetime(data1['date'])
+
+data1 = data1[data1['date'].dt.year.isin([2022, 2023, 2024])]
+
+data1 = data1.sort_values(by='date', ascending=True, ignore_index=True)
+
+data1
+
+url = "https://archive-api.open-meteo.com/v1/archive"
+
+# Menghitung end_date sesuai dengan permintaan
+end_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
+
+# Mengatur start_date menjadi 1 Januari 2022
+start_date = datetime(2022, 1, 1).strftime('%Y-%m-%d')
+
+# Mengupdate parameter URL
+params = {
+    "latitude": 64.9631,
+    "longitude": -19.0208,
+    "start_date": start_date,
+    "end_date": end_date,
+    "daily": "weather_code,temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum,rain_sum,snowfall_sum,precipitation_hours,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant",
+    "timezone": "auto"
+}
+
+start_date, end_date, params
+
+
+# WMO Weather Code Descriptions
+weather_code_descriptions = {
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Depositing rime fog",
+    51: "Drizzle: Light",
+    53: "Drizzle: Moderate",
+    55: "Drizzle: Dense intensity",
+    56: "Freezing Drizzle: Light",
+    57: "Freezing Drizzle: Dense intensity",
+    61: "Rain: Slight",
+    63: "Rain: Moderate",
+    65: "Rain: Heavy intensity",
+    66: "Freezing Rain: Light",
+    67: "Freezing Rain: Heavy",
+    71: "Snow fall: Slight",
+    73: "Snow fall: Moderate",
+    75: "Snow fall: Heavy",
+    77: "Snow grains",
+    80: "Rain showers: Slight",
+    81: "Rain showers: Moderate",
+    82: "Rain showers: Violent",
+    85: "Snow showers: Slight",
+    86: "Snow showers: Heavy",
+    95: "Thunderstorm: Slight or moderate",
+    96: "Thunderstorm with slight hail",
+    99: "Thunderstorm with heavy hail",
+}
+
+# Mengirim permintaan GET ke API
+response = requests.get(url, params=params)
+
+# Memeriksa status permintaan
+if response.status_code == 200:
+    data = response.json()
+
+    # Ambil data daily
+    daily_data = data.get("daily", {})
+
+    if daily_data:
+        # Convert to DataFrame
+        df = pd.DataFrame(daily_data)
+
+        # Add weather code descriptions
+        df["weather_description"] = df["weather_code"].map(weather_code_descriptions)
+
+        # Save to CSV
+        df.to_csv("weather.csv", index=False)
+        print("Data has been saved to weather.csv")
+    else:
+        print("No daily data found in response.")
+else:
+    print(f"Failed to fetch data. Status code: {response.status_code}")
+
+data2 = pd.read_csv('weather.csv')
+data2.info()
+
+data2
+
+data2['time'].value_counts()
+
+data2['temperature_2m_max'].value_counts()
+
+data2['temperature_2m_min'].value_counts()
+
+data2['temperature_2m_mean'].value_counts()
+
+data2['precipitation_sum'].value_counts()
+
+data2['rain_sum'].value_counts()
+
+data2['snowfall_sum'].value_counts()
+
+data2['precipitation_hours'].value_counts()
+
+data2['wind_speed_10m_max'].value_counts()
+
+data2['wind_gusts_10m_max'].value_counts()
+
+data2['wind_direction_10m_dominant'].value_counts()
+
+data2['weather_description'].value_counts()
+
+data2 = data2.drop(['temperature_2m_min', 'temperature_2m_max', 'precipitation_hours', 'wind_gusts_10m_max', 'wind_direction_10m_dominant','rain_sum', 'snowfall_sum' ], axis=1)
+
+data2.info()
+
+data2["time"] = pd.to_datetime(data2["time"]).dt.strftime('%Y-%m-%d')
+
+
+data2['time'] = pd.to_datetime(data2['time'])
+
+data2
+
+data1.to_csv('currency_new.csv', index=False)
+data2.to_csv('weather_new.csv', index=False)
+
+data_new1 = pd.read_csv('currency_new.csv')
+data_new2 = pd.read_csv('weather_new.csv')
+
+# Ubah kolom ke format datetime
+data_new1['date'] = pd.to_datetime(data_new1['date'])
+data_new2['time'] = pd.to_datetime(data_new2['time'])
+
+# Tambahkan kolom 'year' dan 'month' di kedua DataFrame
+data_new1['year'] = data_new1['date'].dt.year
+data_new1['month'] = data_new1['date'].dt.month
+
+data_new2['year'] = data_new2['time'].dt.year
+data_new2['month'] = data_new2['time'].dt.month
+
+# Drop duplikasi bulan di data1 (jika ada)
+data_new1_unique = data_new1.drop_duplicates(subset=['year', 'month'])
+
+# Merge data berdasarkan tahun dan bulan
+data_new = pd.merge(data_new2, data_new1_unique[['year', 'month', 'rate']], on=['year', 'month'], how='left')
+
+# Hasil
+data_new
+
+# drop unnecessary columns
+data_new = data_new.drop(['month', 'year'], axis = 1)
+
+data_new.info()
+
+data_new.isna().sum()
+
+print(f'The oldest time is {df.time.min()}\nThe latest time is {df.time.max()}')
+
+plt.figure(figsize=(20, 10))
+sns.lineplot(x=data_new['time'], y=data_new['rate'], color='green')
+plt.xlabel('time')
+plt.ylabel('rate')
+plt.title('Lineplot of Time vs rate')
+plt.show()
+
+
+# Convert time to numerical rate for regression
+data_new['numeric_datetime'] = pd.to_numeric(pd.to_datetime(data_new['time']))
+
+# Fit a linear regression line
+coefficients = np.polyfit(data_new['numeric_datetime'], data_new['rate'], 1)
+polynomial = np.poly1d(coefficients)
+trend_line = polynomial(data_new['numeric_datetime'])
+
+plt.figure(figsize=(20, 10))
+# Changed 'datetime' to 'Date time' in line 11 and 14
+plt.plot(data_new['time'], data_new['rate'], label='Value', color = 'green') # Changed 'Date time' to 'datetime'
+plt.plot(data_new['time'], trend_line, label='Trend Line', color='red', linestyle='--') # Changed 'Date time' to 'datetime'
+plt.xlabel('Datetime')
+plt.ylabel('Value')
+plt.title('Distribution of Datetime and Value')
+
+# Filter data to include only the first day of each month
+# Changed 'datetime' to 'Date time' in line 19
+monthly_data = data_new[pd.to_datetime(data_new['time']).dt.day == 1] # Changed 'Date time' to 'datetime'
+
+
+# Adding text annotations on top of the line for the first day of each month
+# Changed 'datetime' to 'Date time' in line 22
+for i, (dt, val) in enumerate(zip(monthly_data['time'], monthly_data['rate'])): # Changed 'Date time' to 'datetime'
+    plt.text(dt, val, f'{val:.2f}', ha='center', va='bottom', fontsize=12, rotation=0, color='blue')
+
+plt.legend()
+plt.show()
+
+data_new.drop(['numeric_datetime'], axis = 1, inplace=True)
+
+data_new
+
+# @title Temperature vs. Wind Speed
+
+import matplotlib.pyplot as plt
+
+# Assuming your data is in a pandas DataFrame called 'df'
+
+# Create the scatter plot
+plt.figure(figsize=(10, 6))
+plt.scatter(df['temperature_2m_mean'], df['wind_speed_10m_max'])
+
+plt.xlabel('Temperature (℃)')
+plt.ylabel('Wind Speed (m/s)')
+_ = plt.title('Temperature vs. Wind Speed')
+
+
+# @title precipitation_sum vs wind_speed_10m_max
+
+from matplotlib import pyplot as plt
+data_new.plot(kind='scatter', x='precipitation_sum', y='wind_speed_10m_max', s=32, alpha=.8)
+plt.gca().spines[['top', 'right',]].set_visible(False)
+
+data_encoded = data_new.drop(['weather_description'], axis = 1)
+
+plt.figure(figsize=(20, 10))
+sns.heatmap(data_encoded.corr(), annot=True, cmap='Greens')
+plt.show()
+
+
+
+# relocate the value column to the end
+
+col_value = data_encoded.pop('rate')
+data_encoded.insert(len(data_encoded.columns), 'rate', col_value)
+
+# data_encoded to csv
+
+data_encoded.to_csv('data_final.csv', index=False)
+
+df = pd.read_csv('data_final.csv')
+df.info()
+
+# Identify numeric columns excluding datetime and value columns
+features_col = df.select_dtypes(include=['number']).columns
+features_col = [col for col in features_col if col not in ['datetime', 'rate', 'weather_code']]
+
+# Create subplots
+fig, axes = plt.subplots(1, 3, figsize=(30, 5))
+axes = axes.flatten()
+
+# Iterate over numeric columns
+for i, column in enumerate(features_col):
+    # Create boxplot only if the column is numeric
+    sns.boxplot(x=df[column], ax=axes[i])
+
+# Display the plots
+plt.show()
+
+# Remove outliers
+for column in features_col:
+    q1 = df[column].quantile(0.25)
+    q3 = df[column].quantile(0.75)
+    iqr = q3 - q1
+    fence_low = q1 - 1.5 * iqr
+    fence_high = q3 + 1.5 * iqr
+    df = df.loc[(df[column] > fence_low) & (df[column] < fence_high)]
+
+# Display the modified data
+df
+
+# Identify numeric columns excluding datetime and value columns
+features_col = df.select_dtypes(include=['number']).columns
+features_col = [col for col in features_col if col not in ['datetime', 'rate', 'weather_code']]
+
+# Create subplots
+fig, axes = plt.subplots(1, 3, figsize=(30, 5))
+axes = axes.flatten()
+
+# Iterate over numeric columns
+for i, column in enumerate(features_col):
+    # Create boxplot only if the column is numeric
+    sns.boxplot(x=df[column], ax=axes[i])
+
+# Display the plots
+plt.show()
+
+# Data preprocessing
+X = df.drop(['time', 'rate'], axis=1)  # Features (excluding 'time' dan 'rate')
+y = df['rate']  # Target (kolom 'rate')
+
+# Train-test split berdasarkan waktu
+train_size = int(0.8 * len(df))  # Menghitung ukuran data training (80%)
+train, test = df[:train_size], df[train_size:]  # Membagi data menjadi train dan test
+
+
+# Splitting into X_train, X_test, y_train, y_test
+X_train, y_train = train.drop(['time', 'rate'], axis=1), train['rate']  # Fitur dan target untuk data training
+X_test, y_test = test.drop(['time', 'rate'], axis=1), test['rate']  # Fitur dan target untuk data testing
+
+
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Model prediction
+y_pred = model.predict(X_test)
+
+# Evaluate the model using RMSE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f'Root Mean Squared Error: {rmse}')
+
+# Plotting Actual vs Predicted values
+plt.figure(figsize=(10, 6))
+
+# Scatter plot of actual vs predicted values
+plt.scatter(y_test, y_pred, color='blue', alpha=0.5, label='Predicted vs Actual')
+
+# Add a line for perfect prediction (y = x)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', label='Perfect prediction')
+
+# Add labels and title
+plt.xlabel('Actual Values')
+plt.ylabel('Predicted Values')
+plt.title('Actual vs Predicted Values - Linear Regression')
+plt.legend()
+
+# Show plot
+plt.show()
+
+
+
+# Fit XGBoost model
+model = XGBRegressor()
+model.fit(X_train, y_train)
+
+# Model prediction
+y_pred = model.predict(X_test)
+
+# Evaluate the model using RMSE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f'Root Mean Squared Error: {rmse}')
+
+# Plotting Actual vs Predicted values
+plt.figure(figsize=(10, 6))
+
+# Scatter plot of actual vs predicted values
+plt.scatter(y_test, y_pred, color='blue', alpha=0.5, label='Predicted vs Actual')
+
+# Add a line for perfect prediction (y = x)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', label='Perfect prediction')
+
+# Add labels and title
+plt.xlabel('Actual Values')
+plt.ylabel('Predicted Values')
+plt.title('Actual vs Predicted Values - XGBoostRegressor')
+plt.legend()
+
+# Show plot
+plt.show()
+
+
+
+# Fit RandomForestRegressor model
+model = RandomForestRegressor()
+model.fit(X_train, y_train)
+
+# Model prediction
+y_pred = model.predict(X_test)
+
+# Evaluate the model using RMSE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f'Root Mean Squared Error: {rmse}')
+
+# Plotting Actual vs Predicted values
+plt.figure(figsize=(10, 6))
+
+# Scatter plot of actual vs predicted values
+plt.scatter(y_test, y_pred, color='blue', alpha=0.5, label='Predicted vs Actual')
+
+# Add a line for perfect prediction (y = x)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', label='Perfect prediction')
+
+# Add labels and title
+plt.xlabel('Actual Values')
+plt.ylabel('Predicted Values')
+plt.title('Actual vs Predicted Values - RandomForestRegressor')
+plt.legend()
+
+# Show plot
+plt.show()
+
+
+# Fit DecisionTreeRegressor model
+model = DecisionTreeRegressor()
+model.fit(X_train, y_train)
+
+# Model prediction
+y_pred = model.predict(X_test)
+
+# Evaluate the model using RMSE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f'Root Mean Squared Error: {rmse}')
+
+# Plotting Actual vs Predicted values
+plt.figure(figsize=(10, 6))
+
+# Scatter plot of actual vs predicted values
+plt.scatter(y_test, y_pred, color='blue', alpha=0.5, label='Predicted vs Actual')
+
+# Add a line for perfect prediction (y = x)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', label='Perfect prediction')
+
+# Add labels and title
+plt.xlabel('Actual Values')
+plt.ylabel('Predicted Values')
+plt.title('Actual vs Predicted Values - DecisionTreeRegressor')
+plt.legend()
+
+# Show plot
+plt.show()
+
+
+
+
+./.env ===================
+# Database Configuration
+DB_HOST=aws-0-ap-southeast-1.pooler.supabase.com
+DB_NAME=postgres
+DB_USER=postgres.nvssrkzspnbjzmhclcyf
+DB_PASSWORD=kambing12345677778
+
+# API Configuration
+OPEN_METEO_BASE_URL=https://archive-api.open-meteo.com/v1/archive
+
+# Weather API Parameters
+WEATHER_LATITUDE=64.9631
+WEATHER_LONGITUDE=-19.0208
+
+# Model Configuration
+MODEL_SAVE_PATH=models/
+TRAIN_TEST_SPLIT=0.2
+RANDOM_STATE=42
+
+# Logging
+LOG_LEVEL=INFO
+LOG_PATH=logs/
+
+# Airflow Configuration
+AIRFLOW_HOME=/opt/airflow
+AIRFLOW_DAGS=/opt/airflow/dags
+AIRFLOW_LOGS=/opt/airflow/logs
+
+./projectStructure.md ===================
+currency-weather-prediction/
+├── docker/
+│   ├── airflow/
+│   │   └── Dockerfile
+│   ├── jupyter/
+│   │   └── Dockerfile
+│   └── postgres/
+│       └── init.sql
+├── airflow/
+│   ├── dags/
+│   ├── logs/
+│   ├── plugins/
+│   └── config/
+├── src/
+│   ├── data/
+│   ├── database/
+│   ├── models/
+│   └── utils/
+├── notebooks/
+├── tests/
+├── logs/
+├── docker-compose.yml
+├── requirements.txt
+├── setup.sh
+└── manage.sh
+
+./src/__init__.py ===================
+from src.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+./src/init__data.py ===================
+from data.currency import fetch_currency_data
+from data.weather import fetch_weather_data
+from database.connection import insert_currency_data, insert_weather_data, get_merged_data, insert_training_data
+from models.preprocessing import prepare_data
+
+def main():
+    """Main function to initialize and preprocess data"""
+    print("Starting data initialization...")
+    
+    # Fetch data
+    currency_data = fetch_currency_data()
+    weather_data = fetch_weather_data()
+    
+    # Insert into database
+    if currency_data is not None and weather_data is not None:
+        insert_currency_data(currency_data)
+        insert_weather_data(weather_data)
+    else:
+        print("Failed to fetch data, database insertion skipped")
+        return
+    
+    print("Data fetched and inserted successfully.")
+    
+    # Process and store data
+    print("Starting data preprocessing...")
+    df = get_merged_data()
+    X_train, X_test, y_train, y_test, scaler, feature_cols = prepare_data(df)
+    
+    # Combine X_train and y_train for storage
+    training_data = X_train.copy()
+    training_data['date'] = df['date']
+    training_data['rate'] = y_train
+    training_data['model_version'] = 'v1.0'  # Example model version
+    
+    insert_training_data(training_data)
+    print("Data preprocessing and storage completed.")
+
+if __name__ == "__main__":
+    main()
+
+./src/__pycache__/__init__.cpython-39.pyc ===================
+Error reading file: 'utf-8' codec can't decode byte 0x9b in position 8: invalid start byte
+
+
+./src/models/__init__.py ===================
+from src.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+./src/models/preprocessing.py ===================
+# src/models/preprocessing.py
+
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from typing import Tuple, Dict
+from src.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Clean merged data from database"""
+    logger.info("Starting data cleaning process...")
+    
+    # Remove missing values
+    df = df.dropna()
+    
+    # Convert date if needed
+    if df['date'].dtype != 'datetime64[ns]':
+        df['date'] = pd.to_datetime(df['date'])
+    
+    # Handle outliers for numeric columns
+    numeric_cols = ['temperature_2m_mean', 'precipitation_sum', 'wind_speed_10m_max', 'rate']
+    for col in numeric_cols:
+        q1 = df[col].quantile(0.25)
+        q3 = df[col].quantile(0.75)
+        iqr = q3 - q1
+        fence_low = q1 - 1.5 * iqr
+        fence_high = q3 + 1.5 * iqr
+        df = df.loc[(df[col] > fence_low) & (df[col] < fence_high)]
+    
+    logger.info(f"Data cleaning completed. Rows remaining: {len(df)}")
+    return df
+
+def prepare_features(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, StandardScaler]:
+    """Prepare features for modeling"""
+    logger.info("Preparing features...")
+    
+    # Create features
+    X = df.drop(['date', 'rate'], axis=1)
+    y = df['rate']
+    
+    # Scale features
+    scaler = StandardScaler()
+    X_scaled = pd.DataFrame(
+        scaler.fit_transform(X),
+        columns=X.columns,
+        index=X.index
+    )
+    
+    logger.info(f"Feature preparation completed. Features: {', '.join(X.columns)}")
+    return X_scaled, y, scaler
+
+def split_data(X: pd.DataFrame, y: pd.Series, train_size: float = 0.8) -> Dict:
+    """Split data chronologically"""
+    logger.info("Splitting data...")
+    
+    split_idx = int(len(X) * train_size)
+    
+    train_data = {
+        'X': X[:split_idx],
+        'y': y[:split_idx]
+    }
+    
+    test_data = {
+        'X': X[split_idx:],
+        'y': y[split_idx:]
+    }
+    
+    logger.info(f"Data split completed. Train size: {len(train_data['X'])}, Test size: {len(test_data['X'])}")
+    return {'train': train_data, 'test': test_data}
+
+./src/models/train.py ===================
+# src/models/train.py
+
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+from xgboost import XGBRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.tree import DecisionTreeRegressor
+import pickle
+from datetime import datetime
+from typing import Dict, Any, Tuple
+from src.database.connection import get_merged_data, insert_predictions
+from src.utils.logger import setup_logger
+from src.models.preprocessing import clean_data, prepare_features, split_data
+import os
+
+logger = setup_logger(__name__)
+
+class ModelTrainer:
+    def __init__(self):
+        self.models = {
+            'LinearRegression': LinearRegression(),
+            'XGBoost': XGBRegressor(random_state=42),
+            'RandomForest': RandomForestRegressor(random_state=42),
+            'DecisionTree': DecisionTreeRegressor(random_state=42)
+        }
+        
+    def train_model(self, model, X_train: pd.DataFrame, y_train: pd.Series) -> Any:
+        """Train a single model"""
+        logger.info(f"Training {type(model).__name__}...")
+        model.fit(X_train, y_train)
+        return model
+    
+    def evaluate_model(self, model, X_test: pd.DataFrame, y_test: pd.Series) -> Tuple[float, float, np.ndarray]:
+        """Evaluate a trained model"""
+        predictions = model.predict(X_test)
+        rmse = np.sqrt(mean_squared_error(y_test, predictions))
+        r2 = r2_score(y_test, predictions)
+        
+        logger.info(f"Model evaluation - RMSE: {rmse:.4f}, R2: {r2:.4f}")
+        return rmse, r2, predictions
+    
+    def train_and_evaluate_all(self, train_data: Dict, test_data: Dict) -> Dict[str, Dict]:
+        """Train and evaluate all models"""
+        results = {}
+        
+        for name, model in self.models.items():
+            logger.info(f"\nTraining and evaluating {name}...")
+            
+            # Train
+            trained_model = self.train_model(model, train_data['X'], train_data['y'])
+            
+            # Evaluate
+            rmse, r2, predictions = self.evaluate_model(trained_model, test_data['X'], test_data['y'])
+            
+            results[name] = {
+                'model': trained_model,
+                'rmse': rmse,
+                'r2': r2,
+                'predictions': predictions
+            }
+        
+        return results
+    
+def save_best_model(self, results: Dict[str, Dict], scaler: Any, feature_names: list) -> str:
+        """Save the best performing model"""
+        best_model_name = min(results.items(), key=lambda x: x[1]['rmse'])[0]
+        best_model_info = results[best_model_name]
+        
+        model_data = {
+            'model': best_model_info['model'],
+            'scaler': scaler,
+            'feature_names': feature_names,
+            'rmse': best_model_info['rmse'],
+            'r2': best_model_info['r2']
+        }
+        
+        # Create models directory if it doesn't exist
+        models_dir = '/opt/airflow/models'
+        os.makedirs(models_dir, exist_ok=True)
+        
+        filename = os.path.join(models_dir, f'best_model_{datetime.now().strftime("%Y%m%d")}.pkl')
+        with open(filename, 'wb') as f:
+            pickle.dump(model_data, f)
+        
+        logger.info(f"Best model ({best_model_name}) saved to {filename}")
+        return best_model_name
+
+def run_training_pipeline():
+    """Run the complete training pipeline"""
+    logger.info("Starting model training pipeline...")
+    
+    # Get data from database
+    df = get_merged_data()
+    logger.info(f"Retrieved {len(df)} rows from database")
+    
+    # Clean data
+    df_clean = clean_data(df)
+    
+    # Prepare features
+    X, y, scaler = prepare_features(df_clean)
+    
+    # Split data
+    split_data_dict = split_data(X, y)
+    
+    # Train and evaluate models
+    trainer = ModelTrainer()
+    results = trainer.train_and_evaluate_all(split_data_dict['train'], split_data_dict['test'])
+    
+    # Save best model
+    best_model_name = trainer.save_best_model(results, scaler, X.columns.tolist())
+    
+    # Store predictions in database
+    best_predictions = results[best_model_name]['predictions']
+    test_dates = df_clean['date'].iloc[int(len(df_clean) * 0.8):]
+    
+    insert_predictions(
+        dates=test_dates,
+        actual_values=split_data_dict['test']['y'],
+        predicted_values=best_predictions,
+        model_name=best_model_name
+    )
+    
+    logger.info("Training pipeline completed successfully!")
+    return best_model_name, results[best_model_name]['rmse']
+
+if __name__ == "__main__":
+    run_training_pipeline()
+
+./src/database/connection.py ===================
+# src/database/connection.py
+
+import os
+import psycopg2
+from psycopg2.extras import execute_values
+import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def get_db_connection():
+    """Create a connection to the PostgreSQL database"""
+    return psycopg2.connect(
+        host="aws-0-ap-southeast-1.pooler.supabase.com",
+        database="postgres",
+        user="postgres.nvssrkzspnbjzmhclcyf",
+        password="kambing12345677778"
+    )
+
+def insert_currency_data(df):
+    """Insert currency data into the database"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Create table if not exists
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS currency_data (
+            date DATE PRIMARY KEY,
+            rate FLOAT
+        )
+    """)
+    
+    # Convert DataFrame to list of tuples
+    values = [tuple(x) for x in df[['date', 'rate']].values]
+    
+    # Insert data
+    execute_values(
+        cur,
+        "INSERT INTO currency_data (date, rate) VALUES %s ON CONFLICT (date) DO UPDATE SET rate = EXCLUDED.rate",
+        values
+    )
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def insert_weather_data(df):
+    """Insert weather data into the database"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Create table if not exists
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS weather_data (
+            date DATE PRIMARY KEY,
+            temperature_2m_mean FLOAT,
+            precipitation_sum FLOAT,
+            wind_speed_10m_max FLOAT,
+            weather_code INTEGER
+        )
+    """)
+    
+    # Convert DataFrame to list of tuples
+    values = [tuple(x) for x in df[['date', 'temperature_2m_mean', 'precipitation_sum', 
+                                  'wind_speed_10m_max', 'weather_code']].values]
+    
+    # Insert data
+    execute_values(
+        cur,
+        """
+        INSERT INTO weather_data 
+        (date, temperature_2m_mean, precipitation_sum, wind_speed_10m_max, weather_code) 
+        VALUES %s 
+        ON CONFLICT (date) DO UPDATE SET 
+            temperature_2m_mean = EXCLUDED.temperature_2m_mean,
+            precipitation_sum = EXCLUDED.precipitation_sum,
+            wind_speed_10m_max = EXCLUDED.wind_speed_10m_max,
+            weather_code = EXCLUDED.weather_code
+        """,
+        values
+    )
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def insert_predictions(dates, actual_values, predicted_values, model_name):
+    """Insert model predictions into the database"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Create table if not exists
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS rate_predictions (
+            prediction_date DATE PRIMARY KEY,
+            predicted_rate FLOAT NOT NULL,
+            actual_rate FLOAT,
+            model_name VARCHAR(50),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Prepare data for insertion
+    values = []
+    for date, actual, pred in zip(dates, actual_values, predicted_values):
+        values.append((date, pred, actual, model_name))
+    
+    # Insert predictions
+    execute_values(
+        cur,
+        """
+        INSERT INTO rate_predictions 
+        (prediction_date, predicted_rate, actual_rate, model_name)
+        VALUES %s
+        ON CONFLICT (prediction_date) DO UPDATE SET 
+            predicted_rate = EXCLUDED.predicted_rate,
+            actual_rate = EXCLUDED.actual_rate,
+            model_name = EXCLUDED.model_name,
+            created_at = CURRENT_TIMESTAMP
+        """,
+        values
+    )
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def get_merged_data():
+    """Get merged data from database for model training"""
+    conn = get_db_connection()
+    
+    query = """
+        SELECT 
+            w.date,
+            c.rate,
+            w.temperature_2m_mean,
+            w.precipitation_sum,
+            w.wind_speed_10m_max,
+            w.weather_code
+        FROM weather_data w
+        LEFT JOIN (
+            SELECT
+                DATE_TRUNC('month', date) AS month,
+                AVG(rate) AS rate
+            FROM currency_data
+            GROUP BY month
+        ) c
+        ON DATE_TRUNC('month', w.date) = c.month
+        ORDER BY w.date
+    """
+    
+    df = pd.read_sql(query, conn)
+    conn.close()
+    
+    return df
+
+./src/database/__init__.py ===================
+from src.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+./src/database/config.py ===================
+# src/database/config.py
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Database configuration
+DB_CONFIG = {
+    'host': "aws-0-ap-southeast-1.pooler.supabase.com",
+    'database': "postgres",
+    'user': "postgres.nvssrkzspnbjzmhclcyf",
+    'password': "kambing12345677778"
+}
+
+# SQL Queries
+CREATE_CURRENCY_TABLE = """
+CREATE TABLE IF NOT EXISTS currency_data (
+    date DATE PRIMARY KEY,
+    rate FLOAT NOT NULL
+);
+"""
+
+CREATE_WEATHER_TABLE = """
+CREATE TABLE IF NOT EXISTS weather_data (
+    date DATE PRIMARY KEY,
+    temperature_2m_mean FLOAT,
+    precipitation_sum FLOAT,
+    wind_speed_10m_max FLOAT,
+    weather_code INTEGER
+);
+"""
+
+CREATE_PREDICTIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS rate_predictions (
+    prediction_date DATE PRIMARY KEY,
+    predicted_rate FLOAT NOT NULL,
+    actual_rate FLOAT,
+    model_version VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+# Query to get merged data for model training
+GET_TRAINING_DATA = """
+SELECT 
+    c.date,
+    c.rate,
+    w.temperature_2m_mean,
+    w.precipitation_sum,
+    w.wind_speed_10m_max,
+    w.weather_code
+FROM currency_data c
+LEFT JOIN weather_data w ON c.date = w.date
+ORDER BY c.date;
+"""
+
+./src/database/__pycache__/connection.cpython-39.pyc ===================
+Error reading file: 'utf-8' codec can't decode byte 0xd8 in position 12: invalid continuation byte
+
+
+./src/database/__pycache__/__init__.cpython-39.pyc ===================
+Error reading file: 'utf-8' codec can't decode byte 0x9b in position 8: invalid start byte
+
+
+./src/utils/__init__.py ===================
+from src.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+./src/utils/logger.py ===================
+# src/utils/logger.py
+
+import logging
+import os
+from datetime import datetime
+
+def setup_logger(name):
+    """
+    Set up logger with specified configuration
+    """
+    # Create logs directory if it doesn't exist
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    
+    # Create logger
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # Create file handler
+    log_file = f"logs/{name}_{datetime.now().strftime('%Y%m%d')}.log"
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    
+    # Create console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    
+    # Add handlers to logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+# Example usage in other files:
+# from src.utils.logger import setup_logger
+# logger = setup_logger(__name__)
+
+./src/utils/__pycache__/__init__.cpython-39.pyc ===================
+Error reading file: 'utf-8' codec can't decode byte 0x9b in position 8: invalid start byte
+
+
+./src/utils/__pycache__/logger.cpython-39.pyc ===================
+Error reading file: 'utf-8' codec can't decode byte 0x80 in position 9: invalid start byte
+
+
+./docker/postgres/init.sql ===================
+-- docker/postgres/init.sql
+
+-- Create currency data table
+CREATE TABLE IF NOT EXISTS currency_data (
+    date DATE PRIMARY KEY,
+    rate FLOAT NOT NULL
+);
+
+-- Create weather data table
+CREATE TABLE IF NOT EXISTS weather_data (
+    date DATE PRIMARY KEY,
+    temperature_2m_mean FLOAT,
+    precipitation_sum FLOAT,
+    wind_speed_10m_max FLOAT,
+    weather_code INTEGER
+);
+
+-- Create predictions table
+CREATE TABLE IF NOT EXISTS rate_predictions (
+    prediction_date DATE PRIMARY KEY,
+    predicted_rate FLOAT NOT NULL,
+    actual_rate FLOAT,
+    model_version VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create view for model training
+CREATE OR REPLACE VIEW training_data AS
+SELECT 
+    c.date,
+    c.rate,
+    w.temperature_2m_mean,
+    w.precipitation_sum,
+    w.wind_speed_10m_max,
+    w.weather_code
+FROM currency_data c
+LEFT JOIN weather_data w ON c.date = w.date
+ORDER BY c.date;
+
+./docker/jupyter/Dockerfile ===================
+# docker/jupyter/Dockerfile
+FROM jupyter/scipy-notebook:python-3.9
+
+USER root
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+USER ${NB_UID}
+
+# Copy requirements file
+COPY requirements.txt /tmp/requirements.txt
+
+# Install Python packages
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Set working directory
+WORKDIR /home/jovyan
+
+# Set the PYTHONPATH
+ENV PYTHONPATH=/home/jovyan
+
+
+./docker/airflow/Dockerfile ===================
+# docker/airflow/Dockerfile
+FROM apache/airflow:2.7.1-python3.9
+
+USER root
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create models directory and set permissions
+RUN mkdir -p /opt/airflow/models && \
+    chown -R airflow:root /opt/airflow/models && \
+    chmod -R 755 /opt/airflow/models
+
+USER airflow
+
+# Copy requirements file
+COPY requirements.txt /requirements.txt
+
+# Install Python packages
+RUN pip install --no-cache-dir -r /requirements.txt
+
+# Copy the entire project
+COPY . /opt/airflow/
+
+# Set the PYTHONPATH
+ENV PYTHONPATH=/opt/airflow
+
+./tests/test_weather.py ===================
+# tests/test_weather.py
+
+import pytest
+import pandas as pd
+from datetime import datetime
+from src.data.weather import fetch_weather_data
+
+def test_fetch_weather_data():
+    """Test weather data fetching function"""
+    # Fetch data
+    df = fetch_weather_data()
+    
+    # Check if DataFrame is returned
+    assert isinstance(df, pd.DataFrame)
+    
+    # Check if required columns are present
+    required_columns = [
+        'date', 'temperature_2m_mean', 'precipitation_sum',
+        'wind_speed_10m_max', 'weather_code'
+    ]
+    assert all(col in df.columns for col in required_columns)
+    
+    # Check if data types are correct
+    assert pd.api.types.is_datetime64_dtype(df['date']) or isinstance(df['date'].iloc[0], datetime)
+    assert pd.api.types.is_float_dtype(df['temperature_2m_mean'])
+    assert pd.api.types.is_float_dtype(df['precipitation_sum'])
+    assert pd.api.types.is_float_dtype(df['wind_speed_10m_max'])
+    assert pd.api.types.is_integer_dtype(df['weather_code'])
+    
+    # Check if data is not empty
+    assert not df.empty
+    
+    # Check if dates are in ascending order
+    assert df['date'].is_monotonic_increasing
+    
+    # Check if weather codes are in valid range
+    assert df['weather_code'].between(0, 99).all()
+
+./tests/__init__.py ===================
+
+
+./tests/test_currency.py ===================
+# tests/test_currency.py
+
+import pytest
+import pandas as pd
+from datetime import datetime, timedelta
+from src.data.currency import fetch_currency_data
+
+def test_fetch_currency_data():
+    """Test currency data fetching function"""
+    # Fetch data
+    df = fetch_currency_data()
+    
+    # Check if DataFrame is returned
+    assert isinstance(df, pd.DataFrame)
+    
+    # Check if required columns are present
+    assert all(col in df.columns for col in ['date', 'rate'])
+    
+    # Check if data types are correct
+    assert pd.api.types.is_datetime64_dtype(df['date']) or isinstance(df['date'].iloc[0], datetime)
+    assert pd.api.types.is_float_dtype(df['rate'])
+    
+    # Check if data is not empty
+    assert not df.empty
+    
+    # Check if dates are in ascending order
+    assert df['date'].is_monotonic_increasing
+
+./tests/test_model.py ===================
+# tests/test_model.py
+
+import pytest
+import pandas as pd
+import numpy as np
+from src.models.preprocessing import clean_data, create_features, prepare_data
+from src.models.train import train_model, predict_rate
+
+def create_sample_data():
+    """Create sample data for testing"""
+    dates = pd.date_range(start='2023-01-01', end='2023-12-31', freq='D')
+    np.random.seed(42)
+    
+    df = pd.DataFrame({
+        'date': dates,
+        'rate': np.random.normal(140, 5, len(dates)),
+        'temperature_2m_mean': np.random.normal(10, 5, len(dates)),
+        'precipitation_sum': np.random.exponential(2, len(dates)),
+        'wind_speed_10m_max': np.random.normal(8, 2, len(dates)),
+        'weather_code': np.random.randint(0, 99, len(dates))
+    })
+    
+    return df
+
+def test_data_preprocessing():
+    """Test data preprocessing functions"""
+    # Create sample data
+    df = create_sample_data()
+    
+    # Test clean_data
+    cleaned_df = clean_data(df)
+    assert not cleaned_df.isna().any().any()
+    assert cleaned_df['date'].is_monotonic_increasing
+    
+    # Test create_features
+    featured_df = create_features(cleaned_df)
+    assert 'month' in featured_df.columns
+    assert 'day_of_week' in featured_df.columns
+    assert 'rate_lag1' in featured_df.columns
+    assert 'rate_rolling_mean_7' in featured_df.columns
+    
+    # Test prepare_data
+    X_train, X_test, y_train, y_test, scaler, feature_cols = prepare_data(df)
+    assert isinstance(X_train, pd.DataFrame)
+    assert isinstance(y_train, pd.Series)
+    assert len(X_train) + len(X_test) == len(df) - 30  # Account for rolling features
+    assert all(col in feature_cols for col in ['temperature_2m_mean', 'precipitation_sum'])
+
+def test_model_training():
+    """Test model training and prediction"""
+    # Create sample data
+    df = create_sample_data()
+    
+    # Prepare data
+    X_train, X_test, y_train, y_test, scaler, feature_cols = prepare_data(df)
+    
+    # Train model
+    model, train_score, test_score = train_model(X_train, X_test, y_train, y_test)
+    
+    # Check if scores are reasonable
+    assert 0 <= train_score <= 1
+    assert 0 <= test_score <= 1
+    
+    # Test prediction
+    predictions = predict_rate(X_test, model)
+    assert len(predictions) == len(X_test)
+    assert isinstance(predictions, np.ndarray)
+
+./airflow/config/airflow.cfg ===================
+[database]
+sql_alchemy_conn = postgresql+psycopg2://airflow:airflow@postgres/airflow
+
+[core]
+executor = LocalExecutor
+load_examples = False
+dags_folder = /opt/airflow/dags
+plugins_folder = /opt/airflow/plugins
+dag_file_processor_timeout = 600
+
+[webserver]
+base_url = http://localhost:8080
+web_server_host = 0.0.0.0
+web_server_port = 8080
+secret_key = this-is-a-very-secret-key
+workers = 4
+worker_class = sync
+expose_config = True
+auth_backend = airflow.api.auth.backend.basic_auth
+
+[scheduler]
+job_heartbeat_sec = 5
+scheduler_heartbeat_sec = 5
+min_file_process_interval = 30
+dag_dir_list_interval = 30
+print_stats_interval = 30
+num_runs = -1
+processor_poll_interval = 1
+catchup_by_default = True
+max_tis_per_query = 512
+
+[logging]
+base_log_folder = /opt/airflow/logs
+remote_logging = False
+
+./airflow/dags/currency_weather_pipeline.py ===================
+# airflow/dags/currency_weather_pipeline.py
+
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from datetime import datetime, timedelta
+import sys
+import os
+
+# Add src directory to Python path
+sys.path.append('/opt/airflow/src')
+
+from data.currency import fetch_currency_data
+from data.weather import fetch_weather_data
+from database.connection import insert_currency_data, insert_weather_data
+from utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+default_args = {
+    'owner': 'airflow',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 1, 1),
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+}
+
+dag = DAG(
+    'currency_weather_pipeline',
+    default_args=default_args,
+    description='ETL pipeline for currency and weather data',
+    schedule_interval='0 0 * * *',  # Run daily at midnight
+)
+
+def fetch_and_store_currency():
+    """Fetch and store currency data"""
+    try:
+        logger.info("Fetching currency data...")
+        data = fetch_currency_data()
+        if data is not None:
+            insert_currency_data(data)
+            logger.info("Currency data stored successfully")
+        else:
+            raise Exception("Failed to fetch currency data")
+    except Exception as e:
+        logger.error(f"Error in currency data pipeline: {str(e)}")
+        raise
+
+def fetch_and_store_weather():
+    """Fetch and store weather data"""
+    try:
+        logger.info("Fetching weather data...")
+        data = fetch_weather_data()
+        if data is not None:
+            insert_weather_data(data)
+            logger.info("Weather data stored successfully")
+        else:
+            raise Exception("Failed to fetch weather data")
+    except Exception as e:
+        logger.error(f"Error in weather data pipeline: {str(e)}")
+        raise
+
+# Define tasks
+fetch_currency_task = PythonOperator(
+    task_id='fetch_currency_data',
+    python_callable=fetch_and_store_currency,
+    dag=dag,
+)
+
+fetch_weather_task = PythonOperator(
+    task_id='fetch_weather_data',
+    python_callable=fetch_and_store_weather,
+    dag=dag,
+)
+
+# Set task dependencies
+fetch_currency_task >> fetch_weather_task
+
+
+./airflow/dags/__pycache__/currency_weather_pipeline.cpython-39.pyc ===================
+Error reading file: 'utf-8' codec can't decode byte 0xa9 in position 8: invalid start byte
+
+
+./airflow/dags/__pycache__/weather_dag.cpython-39.pyc ===================
+Error reading file: 'utf-8' codec can't decode byte 0xb7 in position 12: invalid start byte
+
+
+./airflow/dags/__pycache__/data_pipelining.cpython-39.pyc ===================
+Error reading file: 'utf-8' codec can't decode byte 0xff in position 8: invalid start byte
+
+
+./airflow/dags/__pycache__/model_training_dag.cpython-39.pyc ===================
+Error reading file: 'utf-8' codec can't decode byte 0xd2 in position 8: invalid continuation byte
+
+
+./airflow/dags/__pycache__/currency_dag.cpython-39.pyc ===================
+Error reading file: 'utf-8' codec can't decode byte 0xbc in position 9: invalid start byte
+
+

@@ -1,0 +1,109 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Node
+node_modules/
+/web/node_modules
+/web/build
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Airflow
+airflow/logs/
+airflow/*.pid
+airflow/*.err
+airflow/*.out
+airflow/*.log
+airflow/airflow-webserver.pid
+
+# Data
+*.csv
+*.db
+*.sqlite3
+model/data/raw/*
+model/data/processed/*
+!model/data/raw/.gitkeep
+!model/data/processed/.gitkeep
+
+# Model files
+*.pkl
+*.h5
+*.model
+*.joblib
+
+# Docker
+.docker/
+
+# System Files
+.DS_Store
+Thumbs.db
